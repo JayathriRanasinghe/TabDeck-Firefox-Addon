@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Tab Groups</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div id="create-group-wrapper">
+      <div id="toggle-create-group">
+        <div class="button-top">Create New Group</div>
+        <div id="group-create-container" style="display: none">
+          <div class="input-row">
+            <input
+              type="text"
+              id="new-group-name"
+              placeholder="New group name"
+            />
+            <button id="create-group-btn">Create</button>
+          </div>
+          <div id="color-options"></div>
+        </div>
+        <div class="button-bottom" id="expand-icon">▼</div>
+      </div>
+    </div>
+
+    <div id="tab-groups-container"></div>
+
+    <hr class="custom-divider" />
+    <ul id="open-tabs-list"></ul>
+
+    <script src="groupColorPicker.js"></script>
+    <script src="sidebar.js"></script>
+  </body>
+</html>
