@@ -22,6 +22,7 @@ function renderGroups(groups) {
   container.innerHTML = "";
 
   groups.forEach((group, idx) => {
+    let isExpanded = true;
     const color = group.color || "#4682B4"; // fallback color
 
     // Create group label
@@ -45,7 +46,9 @@ function renderGroups(groups) {
     deleteAndCloseBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       if (
-        confirm(`Are you sure you want to delete the group "${group.name}" and close the tabs?`)
+        confirm(
+          `Are you sure you want to delete the group "${group.name}" and close the tabs?`
+        )
       ) {
         deleteGroupAndCloseTabs(group.name);
       }
@@ -64,8 +67,59 @@ function renderGroups(groups) {
         deleteGroup(group.name);
       }
     });
-    groupLabel.appendChild(deleteBtn);
-    groupLabel.appendChild(deleteAndCloseBtn);
+    // Restore Tabs button
+    const restoreBtn = document.createElement("span");
+    restoreBtn.textContent = "🔁";
+    restoreBtn.style.marginLeft = "10px";
+    restoreBtn.style.cursor = "pointer";
+    restoreBtn.style.color = "#27ae60";
+    restoreBtn.title = "Restore all saved tabs in this group";
+    restoreBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+
+      const newTabs = [];
+
+      for (const tab of group.tabs) {
+        if (tab.url) {
+          const createdTab = await browser.tabs.create({ url: tab.url });
+
+          newTabs.push({
+            id: createdTab.id,
+            title: tab.title,
+            favIconUrl: tab.favIconUrl,
+            url: tab.url,
+          });
+        }
+      }
+
+      // Replace the group's tabs with the newly created ones
+      const stored = await browser.storage.local.get("groups");
+      const groups = stored.groups || [];
+
+      const targetGroup = groups.find((g) => g.name === group.name);
+      if (targetGroup) {
+        targetGroup.tabs = newTabs;
+        await browser.storage.local.set({ groups });
+        renderSidebar(); // re-render with updated tab ids
+      }
+    });
+
+    // Create a wrapper for the icons so we can toggle it
+    const iconWrapper = document.createElement("span");
+    iconWrapper.style.marginLeft = "10px";
+    iconWrapper.style.display = "inline-block"; // Initial visible state
+
+    if (group.tabs.length > 0) {
+      // Add all action buttons inside this wrapper
+      iconWrapper.appendChild(restoreBtn);
+      iconWrapper.appendChild(deleteBtn);
+      iconWrapper.appendChild(deleteAndCloseBtn);
+    } else {
+      iconWrapper.appendChild(deleteBtn);
+    }
+
+    // Append the icon wrapper to groupLabel
+    groupLabel.appendChild(iconWrapper);
 
     // Create container for tabs
     const tabListWrapper = document.createElement("div");
@@ -97,9 +151,26 @@ function renderGroups(groups) {
 
       // Delete icon
       const deleteIcon = document.createElement("span");
-      deleteIcon.textContent = "❌";
-      deleteIcon.className = "delete-icon";
+      deleteIcon.textContent = "×";
+      deleteIcon.style.color = "#5e5e5e"; // Subtle dark gray
+      deleteIcon.style.fontSize = "16px";
+      deleteIcon.style.fontWeight = "normal";
+      deleteIcon.style.marginLeft = "6px";
+      deleteIcon.style.cursor = "pointer";
+      deleteIcon.style.opacity = "0.6";
       deleteIcon.title = "Close tab";
+      // deleteIcon.textContent = "❌";
+      // deleteIcon.className = "delete-icon";
+      // deleteIcon.title = "Close tab";
+
+      // Smooth hover effect
+      deleteIcon.addEventListener("mouseenter", () => {
+        deleteIcon.style.opacity = "0.9";
+      });
+      deleteIcon.addEventListener("mouseleave", () => {
+        deleteIcon.style.opacity = "0.6";
+      });
+
       deleteIcon.addEventListener("click", (e) => {
         e.stopPropagation();
         browser.tabs.remove(tab.id).then(() => {
@@ -113,9 +184,9 @@ function renderGroups(groups) {
       });
 
       // Append favicon and title
-      tabItem.appendChild(deleteIcon);
       tabItem.appendChild(favicon);
       tabItem.appendChild(titleSpan);
+      tabItem.appendChild(deleteIcon);
       tabList.appendChild(tabItem);
     });
 
@@ -125,17 +196,20 @@ function renderGroups(groups) {
 
     // Set initial collapsed state
     if (group.tabs.length > 0) {
-      let isExpanded = true;
       groupLabel.addEventListener("click", () => {
         isExpanded = !isExpanded;
         tabListWrapper.style.display = isExpanded ? "block" : "none";
-        groupLabel.textContent = `${isExpanded ? "▼" : "▶"} ${group.name}`;
+        iconWrapper.style.display = isExpanded ? "inline-block" : "none";
+        labelText.textContent = `${isExpanded ? "▼" : "▶"} ${group.name}`;
       });
+
+      // Initial state
+      tabListWrapper.style.display = "block";
+      iconWrapper.style.display = "inline-block";
     }
   });
 }
 
-// Display open (unassigned) tabs
 // Display open (unassigned) tabs
 function renderOpenTabs(tabs) {
   const openList = document.getElementById("open-tabs-list");
@@ -150,9 +224,25 @@ function renderOpenTabs(tabs) {
 
     // Create delete (❌) icon
     const deleteIcon = document.createElement("span");
-    deleteIcon.textContent = "❌";
-    deleteIcon.className = "delete-icon";
+
+    deleteIcon.textContent = "×";
+    deleteIcon.style.color = "#3a6ea5"; // Soft medium blue
+    deleteIcon.style.fontSize = "16px";
+    deleteIcon.style.fontWeight = "normal";
+    deleteIcon.style.marginLeft = "6px";
+    deleteIcon.style.cursor = "pointer";
+    deleteIcon.style.opacity = "0.7";
     deleteIcon.title = "Close tab";
+// Smooth hover effect
+deleteIcon.addEventListener("mouseenter", () => {
+  deleteIcon.style.opacity = "1";
+});
+deleteIcon.addEventListener("mouseleave", () => {
+  deleteIcon.style.opacity = "0.7";
+});
+    // deleteIcon.textContent = "❌";
+    // deleteIcon.className = "delete-icon";
+    // deleteIcon.title = "Close tab";
     deleteIcon.addEventListener("click", (e) => {
       e.stopPropagation(); // Avoid triggering group assignment
       browser.tabs.remove(tab.id).then(() => {
@@ -208,11 +298,16 @@ function renderOpenTabs(tabs) {
       });
     });
 
+    // Add click event
+    item.addEventListener("click", () => {
+      browser.tabs.update(tab.id, { active: true });
+    });
+
     // Add elements to item
-    item.appendChild(deleteIcon);
     item.appendChild(favicon);
     item.appendChild(titleSpan);
     item.appendChild(dropdown);
+    item.appendChild(deleteIcon);
 
     // Add click handler
     item.addEventListener("click", async (e) => {
@@ -245,19 +340,23 @@ async function assignTabToGroup(tab, groupName) {
     return;
   }
 
-  group.tabs.push({ id: tab.id, title: tab.title, favIconUrl: tab.favIconUrl, url: tab.url });
+  group.tabs.push({
+    id: tab.id,
+    title: tab.title,
+    favIconUrl: tab.favIconUrl,
+    url: tab.url,
+  });
   await browser.storage.local.set({ groups });
 }
 
 async function deleteGroup(groupName) {
-    const result = await browser.storage.local.get("groups");
-    const updatedGroups = (result.groups || []).filter(
-      (group) => group.name !== groupName
-    );
-    await browser.storage.local.set({ groups: updatedGroups });
-    renderSidebar();
-  }
-  
+  const result = await browser.storage.local.get("groups");
+  const updatedGroups = (result.groups || []).filter(
+    (group) => group.name !== groupName
+  );
+  await browser.storage.local.set({ groups: updatedGroups });
+  renderSidebar();
+}
 
 async function deleteGroupAndCloseTabs(groupName) {
   const result = await browser.storage.local.get("groups");
@@ -359,4 +458,3 @@ document
       expandIcon.textContent = isVisible ? "▼" : "▲";
     }
   });
-  
